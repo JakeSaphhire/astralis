@@ -36,12 +36,6 @@ fn main() {
     }
 }
 
-fn sync(mut serial: Box<dyn SerialPort>, coords: (f64, f64)) -> Box<dyn SerialPort> {
-    // Determines the bearings for the session
-    struct StdFloatOps;
-    serial
-}
-
 fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: Coordinates) -> (Box<dyn SerialPort>, Coordinates) {
     let mut buf = vec![0u8; 24];
     while let Ok(_size) = client.read(&mut buf[..]) {

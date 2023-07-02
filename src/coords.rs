@@ -9,7 +9,7 @@ pub struct Coordinates {
 
 impl Coordinates {
     pub fn new(solaz: f64, intaz: f64) -> Coordinates {
-        Coordinates { solaraz: solaz, internalaz: intaz, azoffset: intaz - solaz}
+        Coordinates { solaraz: solaz, internalaz: intaz, azoffset: solaz - intaz}
     }
 
     pub fn offset_new(offset: f64) -> Coordinates {
@@ -17,9 +17,9 @@ impl Coordinates {
     }
 
     pub fn to_internal(&self, azim: f64) -> f64 {
-        let mut intaz = azim + self.azoffset;
+        let mut intaz = self.azoffset - azim;
         if intaz < 0.0 {
-            intaz = intaz + 360.0;
+            intaz = 360.0 + intaz;
         } else if intaz > 360.0 {
             intaz = intaz - 360.0;
         } 
