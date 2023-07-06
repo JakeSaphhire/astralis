@@ -25,7 +25,7 @@ fn main() {
     let listener = TcpListener::bind(socket_address).unwrap();
 
     // Temporary
-    let mut coords = north_sync();
+    let mut coords = north_sync(None);
 
     // Wait for a single connection and handle it
     println!("Awaiting Connection...");
@@ -39,10 +39,14 @@ fn main() {
 }
 
 fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: Coordinates) -> (Box<dyn SerialPort>, Coordinates) {
-    let mut buf = vec![0u8; 48];
-    'read: while let Ok(_size) = client.read(&mut buf[..]) {
+    let mut buf: Vec<u8> = vec![0u8; 1024];
+    let mut last_azim = 0f64;
+    'read: while let Ok(size) = client.read(&mut buf[..]) {
+        if size < 18 {println!(" Read: {} bytes", size); continue 'read}
         let command = str::from_utf8(&buf).unwrap();
         let mut subcommand = command.split(" ");
+
+        print!("Command: {}", command);
 
         match subcommand.next() {
             Some(command) => {
@@ -54,7 +58,7 @@ fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: C
                         // ..which turns out to be more complicated than I thought
 
                         // Reads the two numbers from the subcommand; format being set_pos <az> <el>
-                        let mut azels: Vec<f64> = subcommand.map(|number| number.chars().filter(|c| c.is_digit(10))
+                        let mut azels: Vec<f64> = subcommand.map(|number| number.chars().filter(|c| c.is_digit(10) || *c == '.')
                                     .collect::<String>()
                                     .parse::<f64>().unwrap()).collect();
 
@@ -63,23 +67,30 @@ fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: C
                         else if azels[0] < 1.0 && azels[0] > 0.0 {azels[0] = 360.0;}
                         else if azels[0] < 0.0 {azels[0] = azels[0] + 360.0;}
                         
+                        if (azels[0] - last_azim).abs() > 0.2 {
+                            last_azim = azels[0];
+                        } else {
+                            continue 'read
+                        }
+                        
+                        //println!("With elements: {}, {}", azels[0], azels[1]);
                         if azels[1] < 5.0 {println!("Commanded elevation below limits!"); azels[1] = 5.0;}
                         else if azels[1] > 70.0 {println!("Commanded elevation over limits!"); azels[1] = 70.0;}
-
-                        // Turn those azels into interal coords
-                        azels.iter_mut().for_each(|angle| *angle = coords.to_internal(*angle));
                         
                         /*
                          * TODO: Control small movements with nudges instead of angles
                          * ANGLE TO HEADING FORMULAS for VQ2500 (h: Heading (unitless); a: Angle (deg)):
                          * Azimuthal headings: 
-                         *      <210* : h = 724.6 +- 15.6 * a
+                         *      <210* : h = 724.6 + 15.6 * a
                          *      >210* : h = 792.0 + 16.20 * a
                          * 
                          * Elevation headings:
                          *      h = 390.1 + 17.44 * a
                          */
 
+                        // Adjusts the azimuthals
+                        azels[0] = coords.to_internal(azels[0]);
+                        println!("Into internal elements: {}, {}", azels[0], azels[1]);
                         // Turn those angles into headings according to the above formulas
                         if azels[0] >= 210.0 {
                             azels[0] = 792.0 + 16.20 * azels[0]; 
@@ -89,10 +100,14 @@ fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: C
 
                         azels[1] = 390.1 + 17.44 * azels[1];
 
+                        //println!("Turned into heading elements: {}, {}", azels[0], azels[1]);
                         let azimuthal_command = format!("azacc {:.0} \r\n", azels[0]);
-                        let elevation_command = format!("elacc {:.0} \r\n", azels[1]);
+                        let elevation_command = format!("elacc {:.0} \r\n", azels[1].ceil());
                         serial.write(azimuthal_command.as_bytes()).unwrap();
                         serial.write(elevation_command.as_bytes()).unwrap();
+
+                        //print!("{}", azimuthal_command);
+                        //print!("{}", elevation_command);
 
                         // TODO: Get Response and flush it (or not lol)
                         // Wait until both operations are done to attempt receiving the next one

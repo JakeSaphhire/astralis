@@ -49,7 +49,10 @@ pub fn sun_sync(mut serial: Box<dyn SerialPort>, lat: f64, lon: f64, internal_az
 
 // The user guesses where the north is; points the coax input towards it.
 // The program will therefor assume there is 0 offset. but because the antenna travels ccw instead of cw
-// it's like if there were a 180* offset
-pub fn north_sync() -> Coordinates {
-    Coordinates::offset_new(360.0)
+// it's like if there were a 360* offset
+pub fn north_sync(antenna_heading: Option<f64>) -> Coordinates {
+    match antenna_heading {
+        Some(heading) => Coordinates::offset_new(heading),
+        None => Coordinates::offset_new(360.0)
+    }
 }

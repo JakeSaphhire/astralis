@@ -16,8 +16,8 @@ impl Coordinates {
         Coordinates {solaraz: -1.0, internalaz: -1.0, azoffset: offset }
     }
 
-    pub fn to_internal(&self, azim: f64) -> f64 {
-        let mut intaz = self.azoffset - azim;
+    pub fn to_internal(&self, tgt_azim: f64) -> f64 {
+        let mut intaz = self.azoffset - tgt_azim;
         if intaz < 0.0 {
             intaz = 360.0 + intaz;
         } else if intaz > 360.0 {
