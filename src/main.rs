@@ -1,4 +1,5 @@
 use serialport::{self, SerialPort};
+use core::slice;
 use std::net::{TcpListener, TcpStream, SocketAddr, Ipv4Addr, IpAddr};
 use std::str;
 use std::io::Read;
@@ -18,7 +19,6 @@ fn main() {
 
     let ports = serialport::available_ports().unwrap();
     println!("Serialports: {:?} ", ports);
-    return;
     let mut serial = serialport::new(&ports[0].port_name, 9600).open().unwrap();
 
     let port = 42690;
@@ -40,10 +40,10 @@ fn main() {
 }
 
 fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: Coordinates) -> (Box<dyn SerialPort>, Coordinates) {
-    let mut buf: Vec<u8> = vec![0u8; 1024];
+    let mut buf: [u8; 1024] = [0u8; 1024];
     let mut last_azim = 0f64;
     'read: while let Ok(size) = client.read(&mut buf[..]) {
-        if size < 18 {println!(" Read: {} bytes", size); continue 'read}
+        if size < 18 {println!(" Read: {} bytes", size); buf = [0u8; 1024]; continue 'read}
         let command = str::from_utf8(&buf).unwrap();
         let mut subcommand = command.split(" ");
 
@@ -103,8 +103,9 @@ fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: C
                         //println!("Turned into heading elements: {}, {}", azels[0], azels[1]);
                         let azimuthal_command = format!("azacc {:.0} \r\n", azels[0]);
                         let elevation_command = format!("elacc {:.0} \r\n", azels[1].ceil());
-                        serial.write(azimuthal_command.as_bytes()).unwrap();
-                        serial.write(elevation_command.as_bytes()).unwrap();
+                        
+                        azimuthal_command.bytes().for_each(|c| {serial.write(slice::from_ref(&c)).unwrap();});
+                        elevation_command.bytes().for_each(|c| {serial.write(slice::from_ref(&c)).unwrap();});
 
                         //print!("{}", azimuthal_command);
                         //print!("{}", elevation_command);
@@ -117,6 +118,7 @@ fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: C
             }
             None => {}            
         }
+        buf = [0u8; 1024];
     }
     (serial, coords)
 }
