@@ -41,15 +41,18 @@ pub fn sun_sync(mut serial: Box<dyn SerialPort>, lat: f64, lon: f64, internal_az
 
             (serial, Some(Coordinates::new(azimsol, response[1])))
         } else {
-            // Failed to get response, *and* read from the antenna. Simply leave
+            /* Failed to get response, *and* read from the antenna. Simply leave */ 
             (serial, None)
         }
     }
 }
 
-// The user guesses where the north is; points the coax input towards it.
-// The program will therefor assume there is 0 offset. but because the antenna travels ccw instead of cw
-// it's like if there were a 360* offset
+
+/*
+ * The user guesses where the north is; points the coax input towards it.
+ * It just works
+ */
+
 pub fn north_sync(antenna_heading: Option<f64>) -> Coordinates {
     match antenna_heading {
         Some(heading) => Coordinates::offset_new(heading),

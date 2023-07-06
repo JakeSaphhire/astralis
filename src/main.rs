@@ -18,6 +18,7 @@ fn main() {
 
     let ports = serialport::available_ports().unwrap();
     println!("Serialports: {:?} ", ports);
+    return;
     let mut serial = serialport::new(&ports[0].port_name, 9600).open().unwrap();
 
     let port = 42690;
@@ -78,7 +79,6 @@ fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: C
                         else if azels[1] > 70.0 {println!("Commanded elevation over limits!"); azels[1] = 70.0;}
                         
                         /*
-                         * TODO: Control small movements with nudges instead of angles
                          * ANGLE TO HEADING FORMULAS for VQ2500 (h: Heading (unitless); a: Angle (deg)):
                          * Azimuthal headings: 
                          *      <210* : h = 724.6 + 15.6 * a
