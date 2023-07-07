@@ -1,32 +1,60 @@
 use serialport::{self, SerialPort};
-use core::slice;
 use std::net::{TcpListener, TcpStream, SocketAddr, Ipv4Addr, IpAddr};
 use std::str;
+use std::env;
 use std::io::Read;
 
 use crate::coords::Coordinates;
 use crate::sync::{north_sync, sun_sync};
+use crate::args::Configuration;
 
 mod sync;
 mod coords;
+mod args;
 
 /*
  * TODO: Add commandline interface
- * TODO: Add commandline argument parsing
- * TODO: Fix (or remove) northsync
  */
 fn main() {
-
+    // Serial port configuration; by default it will always use the first one
     let ports = serialport::available_ports().unwrap();
     println!("Serialports: {:?} ", ports);
     let mut serial = serialport::new(&ports[0].port_name, 9600).open().unwrap();
 
-    let port = 42690;
-    let socket_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0,0,0,0)), port);
-    let listener = TcpListener::bind(socket_address).unwrap();
-
+    // Argument parsing
+    let config = Configuration::parse_args(env::args().collect());
+    
     // Temporary
     let mut coords = north_sync(None);
+    (serial, coords) = match (config.mode, config.gps, config.coax_azim, config.dish_azim) {
+        (args::Mode::Sun, Some(coords), _, dish_azim) => {
+            match sun_sync(serial, coords.0, coords.1, dish_azim) {
+                (serial, Some(coordinates)) => (serial, coordinates),
+                (_, None) => {return}
+            }
+        },
+
+        (args::Mode::Sun, None, _, _) => {
+            // Provided -S option without coordinates; we return
+            return
+        }
+
+        (args::Mode::Direct, _, coaxial_azimuth, _) => {
+            (serial, north_sync(coaxial_azimuth))
+        },
+
+        (args::Mode::Undef, _, _, _) => {
+            // Failed to parse arguments; we return
+            return
+        }
+    };
+
+    let port = match config.port {
+        Some(port) => port,
+        None => 42690
+    };
+    let socket_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0,0,0,0)), port);
+    let listener = TcpListener::bind(socket_address).unwrap();
 
     // Wait for a single connection and handle it
     println!("Awaiting Connection...");
@@ -104,8 +132,9 @@ fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: C
                         let azimuthal_command = format!("azacc {:.0} \r\n", azels[0]);
                         let elevation_command = format!("elacc {:.0} \r\n", azels[1].ceil());
                         
-                        azimuthal_command.bytes().for_each(|c| {serial.write(slice::from_ref(&c)).unwrap();});
-                        elevation_command.bytes().for_each(|c| {serial.write(slice::from_ref(&c)).unwrap();});
+                        // For some reason it only works if we send one byte at the time
+                        azimuthal_command.bytes().for_each(|c| {serial.write(std::slice::from_ref(&c)).unwrap();});
+                        elevation_command.bytes().for_each(|c| {serial.write(std::slice::from_ref(&c)).unwrap();});
 
                         //print!("{}", azimuthal_command);
                         //print!("{}", elevation_command);

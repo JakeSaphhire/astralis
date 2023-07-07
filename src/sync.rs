@@ -51,10 +51,11 @@ pub fn sun_sync(mut serial: Box<dyn SerialPort>, lat: f64, lon: f64, internal_az
 /*
  * The user guesses where the north is; points the coax input towards it.
  * It just works
+ * antenna_azim: Azimuth of the coax in our RL coordinates
  */
 
-pub fn north_sync(antenna_heading: Option<f64>) -> Coordinates {
-    match antenna_heading {
+pub fn north_sync(coax_azim: Option<f64>) -> Coordinates {
+    match coax_azim {
         Some(heading) => Coordinates::offset_new(heading),
         None => Coordinates::offset_new(360.0)
     }
