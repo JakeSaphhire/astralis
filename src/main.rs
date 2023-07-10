@@ -24,7 +24,6 @@ fn main() {
     // Argument parsing
     let config = Configuration::parse_args(env::args().collect());
     
-    // Temporary
     let mut coords = north_sync(None);
     (serial, coords) = match (config.mode, config.gps, config.coax_azim, config.dish_azim) {
         (args::Mode::Sun, Some(coords), _, dish_azim) => {
@@ -133,8 +132,8 @@ fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: C
                         let elevation_command = format!("elacc {:.0} \r\n", azels[1].ceil());
                         
                         // For some reason it only works if we send one byte at the time
-                        azimuthal_command.bytes().for_each(|c| {serial.write(std::slice::from_ref(&c)).unwrap();});
-                        elevation_command.bytes().for_each(|c| {serial.write(std::slice::from_ref(&c)).unwrap();});
+                        azimuthal_command.bytes().for_each(|c| {serial.clear(serialport::ClearBuffer::All);serial.write(std::slice::from_ref(&c)).unwrap();});
+                        elevation_command.bytes().for_each(|c| {serial.clear(serialport::ClearBuffer::All);serial.write(std::slice::from_ref(&c)).unwrap();});
 
                         //print!("{}", azimuthal_command);
                         //print!("{}", elevation_command);
