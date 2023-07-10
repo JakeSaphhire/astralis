@@ -132,8 +132,8 @@ fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: C
                         let elevation_command = format!("elacc {:.0} \r\n", azels[1].ceil());
                         
                         // For some reason it only works if we send one byte at the time
-                        azimuthal_command.bytes().for_each(|c| {serial.clear(serialport::ClearBuffer::All);serial.write(std::slice::from_ref(&c)).unwrap();});
-                        elevation_command.bytes().for_each(|c| {serial.clear(serialport::ClearBuffer::All);serial.write(std::slice::from_ref(&c)).unwrap();});
+                        azimuthal_command.bytes().for_each(|c| {let _ = serial.clear(serialport::ClearBuffer::All);serial.write(std::slice::from_ref(&c)).unwrap();});
+                        elevation_command.bytes().for_each(|c| {let _ = serial.clear(serialport::ClearBuffer::All);serial.write(std::slice::from_ref(&c)).unwrap();});
 
                         //print!("{}", azimuthal_command);
                         //print!("{}", elevation_command);
