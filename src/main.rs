@@ -3,6 +3,7 @@ use std::net::{TcpListener, TcpStream, SocketAddr, Ipv4Addr, IpAddr};
 use std::str;
 use std::env;
 use std::io::Read;
+use std::time::Duration;
 
 use crate::coords::Coordinates;
 use crate::sync::{north_sync, sun_sync};
@@ -19,7 +20,8 @@ fn main() {
     // Serial port configuration; by default it will always use the first one
     let ports = serialport::available_ports().unwrap();
     println!("Serialports: {:?} ", ports);
-    let mut serial = serialport::new(&ports[0].port_name, 9600).open().unwrap();
+    let mut serial = serialport::new(&ports[0].port_name, 256000).timeout(Duration::from_millis(10)).open().unwrap();
+
 
     // Argument parsing
     let config = Configuration::parse_args(env::args().collect());
@@ -54,6 +56,11 @@ fn main() {
     };
     let socket_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0,0,0,0)), port);
     let listener = TcpListener::bind(socket_address).unwrap();
+    match serial.write("Hello".as_bytes()) {
+        Err(e) => println!("Error: {e:?}"),
+        Ok(s) => {println!("Sent: {s} bytes")} ,
+    }
+    println!("Timeout duration: {:?} ", serial.timeout());
 
     // Wait for a single connection and handle it
     println!("Awaiting Connection...");
@@ -69,6 +76,7 @@ fn main() {
 fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: Coordinates) -> (Box<dyn SerialPort>, Coordinates) {
     let mut buf: [u8; 1024] = [0u8; 1024];
     let mut last_azim = 0f64;
+    let mut last_elev = 0f64;
     'read: while let Ok(size) = client.read(&mut buf[..]) {
         if size < 18 {println!(" Read: {} bytes", size); buf = [0u8; 1024]; continue 'read}
         let command = str::from_utf8(&buf).unwrap();
@@ -95,10 +103,14 @@ fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: C
                         else if azels[0] < 1.0 && azels[0] > 0.0 {azels[0] = 360.0;}
                         else if azels[0] < 0.0 {azels[0] = azels[0] + 360.0;}
                         
-                        if (azels[0] - last_azim).abs() > 0.2 {
-                            last_azim = azels[0];
+                        if (azels[0] - last_azim).abs() < 0.2 {
+                            if (azels[1] - last_elev).abs() < 0.1 {
+                                continue 'read;
+                            } else {
+                                last_elev = azels[1];
+                            }
                         } else {
-                            continue 'read
+                            last_azim = azels[1];
                         }
                         
                         //println!("With elements: {}, {}", azels[0], azels[1]);
@@ -132,8 +144,20 @@ fn into_handle(mut client: TcpStream, mut serial: Box<dyn SerialPort>, coords: C
                         let elevation_command = format!("elacc {:.0} \r\n", azels[1].ceil());
                         
                         // For some reason it only works if we send one byte at the time
-                        azimuthal_command.bytes().for_each(|c| {let _ = serial.clear(serialport::ClearBuffer::All);serial.write(std::slice::from_ref(&c)).unwrap();});
-                        elevation_command.bytes().for_each(|c| {let _ = serial.clear(serialport::ClearBuffer::All);serial.write(std::slice::from_ref(&c)).unwrap();});
+                        azimuthal_command.bytes().for_each(|c| {
+                            let _ = serial.clear(serialport::ClearBuffer::All);
+                            match serial.write(std::slice::from_ref(&c)) {
+                                Err(e) => println!("Error: {e:?}"),
+                                _ => {} ,
+                            }
+                        });
+                        elevation_command.bytes().for_each(|c| {
+                            let _ = serial.clear(serialport::ClearBuffer::All);
+                            match serial.write(std::slice::from_ref(&c)) {
+                                Err(e) => println!("Error: {e:?}"),
+                                Ok(s) => {println!("Sent: {s} bytes")} ,
+                            }
+                        });
 
                         //print!("{}", azimuthal_command);
                         //print!("{}", elevation_command);
